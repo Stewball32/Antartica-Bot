@@ -11,13 +11,15 @@ Single-binary Discord bot built with Disgo and PocketBase. It wires Discord even
 
 ## Quick start
 
-1) Copy the config and add your Discord credentials.
+1) Run once to generate `config.yaml`, then add your Discord credentials.
 
 ```bash
-copy config.example.yaml config.yaml
+go run ./cmd/bot
 ```
 
-2) Run the bot (PocketBase starts with `serve` by default).
+2) Update `config.yaml` (Discord tokens + optional PocketBase port).
+
+3) Run the bot again (PocketBase starts with `serve` by default).
 
 ```bash
 go run ./cmd/bot
@@ -30,6 +32,7 @@ go build -o bot ./cmd/bot
 ./bot superuser
 ./bot serve --dir ./pb_data
 ```
+If `pocketbase.port` is set in `config.yaml`, the bot will pass `--http=127.0.0.1:<port>` automatically unless you explicitly provide `--http`.
 
 ## Slash commands
 
@@ -66,3 +69,4 @@ Collections are created/updated automatically on boot:
 
 - Default gateway intents are `gateway.IntentsNonPrivileged`. Add `gateway.IntentMessageContent` if you need raw message content.
 - The bot only starts when running the `serve` command (or no command at all).
+- `config.yaml` is generated from an embedded template (`internal/config/config.example.yaml`) if it doesn't exist.

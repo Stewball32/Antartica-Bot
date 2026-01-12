@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -29,8 +30,9 @@ func main() {
 	pbhooks.RegisterHooks(app, eventBus, logger)
 
 	args := os.Args[1:]
+	commandArgs := args
 	if shouldDefaultServe(args) {
-		app.RootCmd.SetArgs([]string{"serve"})
+		commandArgs = []string{"serve"}
 	}
 
 	if shouldStartDiscord(args) {
@@ -47,6 +49,10 @@ func main() {
 		if token == "" {
 			logger.Error("discord token missing from config")
 			os.Exit(1)
+		}
+
+		if cfg.PocketBase.Port > 0 && isServeCommand(commandArgs) && !hasHTTPArg(commandArgs) {
+			commandArgs = append(commandArgs, fmt.Sprintf("--http=127.0.0.1:%d", cfg.PocketBase.Port))
 		}
 
 		var devGuildID *snowflake.ID
@@ -99,6 +105,10 @@ func main() {
 		})
 	}
 
+	if len(commandArgs) > 0 {
+		app.RootCmd.SetArgs(commandArgs)
+	}
+
 	if err := app.Start(); err != nil {
 		logger.Error("pocketbase exited", slog.Any("err", err))
 		os.Exit(1)
@@ -123,7 +133,7 @@ func readConfig(logger *slog.Logger) (config.Config, error) {
 		}
 
 		logger.Info("created config.yaml from embedded config.example.yaml")
-		logger.Info("fill in discord.client_id, discord.secret, discord.token, and dev.guild_id if dev.enabled")
+		logger.Info("fill in discord.client_id, discord.secret, discord.token, and pocketbase.port; set dev.guild_id if dev.enabled")
 		return cfg, errConfigCreated
 	}
 	return cfg, nil
@@ -154,6 +164,19 @@ func shouldDefaultServe(args []string) bool {
 	}
 
 	return !hasAnyFlag(args, "-h", "--help", "-v", "--version")
+}
+
+func isServeCommand(args []string) bool {
+	return firstNonFlag(args) == "serve"
+}
+
+func hasHTTPArg(args []string) bool {
+	for _, arg := range args {
+		if arg == "--http" || strings.HasPrefix(arg, "--http=") {
+			return true
+		}
+	}
+	return false
 }
 
 func firstNonFlag(args []string) string {
