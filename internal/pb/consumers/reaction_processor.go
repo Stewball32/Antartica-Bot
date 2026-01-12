@@ -44,12 +44,43 @@ func (p *ReactionProcessor) HandleReactionAdd(ctx context.Context, event bus.Rea
 		return
 	}
 
-	if exists, err := p.reactionRecordExists(ctx, event.GuildID, event.MessageID, event.UserID, emojiID, emojiName); err != nil {
+	if event.AuthorID != 0 && event.AuthorID == event.UserID {
+		return
+	}
+
+	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, emojiID, emojiName)
+	if err != nil {
 		if p.logger != nil {
 			p.logger.Warn("reaction record lookup failed", slog.Any("err", err))
 		}
 		return
-	} else if exists {
+	}
+
+	if len(records) > 0 {
+		record := records[0]
+		authorID := strings.TrimSpace(record.GetString("user_id"))
+		if authorID == "" || authorID == event.UserID.String() {
+			return
+		}
+
+		record.Set("reactions", record.GetInt("reactions")+1)
+		if emojiID != "" {
+			record.Set("emoji_id", emojiID)
+		}
+		if emojiName != "" {
+			record.Set("emoji_name", emojiName)
+		}
+
+		if err := p.app.SaveWithContext(ctx, record); err != nil {
+			if p.logger != nil {
+				p.logger.Warn("reaction record save failed", slog.Any("err", err))
+			}
+		}
+		return
+	}
+
+	authorID := event.AuthorID
+	if authorID == 0 || authorID == event.UserID {
 		return
 	}
 
@@ -64,7 +95,7 @@ func (p *ReactionProcessor) HandleReactionAdd(ctx context.Context, event bus.Rea
 	record := core.NewRecord(collection)
 	record.Set("guild_id", event.GuildID.String())
 	record.Set("message_id", event.MessageID.String())
-	record.Set("user_id", event.UserID.String())
+	record.Set("user_id", authorID.String())
 	record.Set("emoji_id", emojiID)
 	record.Set("emoji_name", emojiName)
 	record.Set("reactions", 1)
@@ -82,7 +113,7 @@ func (p *ReactionProcessor) HandleReactionRemove(ctx context.Context, event bus.
 	}
 
 	emojiID, emojiName := normalizeEmoji(event.EmojiID, event.EmojiName)
-	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, event.UserID, emojiID, emojiName)
+	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, emojiID, emojiName)
 	if err != nil {
 		if p.logger != nil {
 			p.logger.Warn("reaction record lookup failed", slog.Any("err", err))
@@ -90,10 +121,27 @@ func (p *ReactionProcessor) HandleReactionRemove(ctx context.Context, event bus.
 		return
 	}
 
-	for _, record := range records {
+	if len(records) == 0 {
+		return
+	}
+
+	record := records[0]
+	authorID := strings.TrimSpace(record.GetString("user_id"))
+	if authorID == "" || authorID == event.UserID.String() {
+		return
+	}
+
+	next := record.GetInt("reactions") - 1
+	if next <= 0 {
 		if err := p.app.DeleteWithContext(ctx, record); err != nil && p.logger != nil {
 			p.logger.Warn("reaction record delete failed", slog.Any("err", err))
 		}
+		return
+	}
+
+	record.Set("reactions", next)
+	if err := p.app.SaveWithContext(ctx, record); err != nil && p.logger != nil {
+		p.logger.Warn("reaction record save failed", slog.Any("err", err))
 	}
 }
 
@@ -103,7 +151,7 @@ func (p *ReactionProcessor) HandleReactionRemoveEmoji(ctx context.Context, event
 	}
 
 	emojiID, emojiName := normalizeEmoji(event.EmojiID, event.EmojiName)
-	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, 0, emojiID, emojiName)
+	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, emojiID, emojiName)
 	if err != nil {
 		if p.logger != nil {
 			p.logger.Warn("reaction record lookup failed", slog.Any("err", err))
@@ -123,7 +171,7 @@ func (p *ReactionProcessor) HandleReactionRemoveAll(ctx context.Context, event b
 		return
 	}
 
-	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, 0, "", "")
+	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, "", "")
 	if err != nil {
 		if p.logger != nil {
 			p.logger.Warn("reaction record lookup failed", slog.Any("err", err))
@@ -143,7 +191,7 @@ func (p *ReactionProcessor) HandleMessageDeleted(ctx context.Context, event bus.
 		return
 	}
 
-	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, 0, "", "")
+	records, err := p.findReactionRecords(ctx, event.GuildID, event.MessageID, "", "")
 	if err != nil {
 		if p.logger != nil {
 			p.logger.Warn("reaction record lookup failed", slog.Any("err", err))
@@ -171,15 +219,7 @@ func (p *ReactionProcessor) isTrackedReaction(_ context.Context, guildID snowfla
 	return len(records) > 0, nil
 }
 
-func (p *ReactionProcessor) reactionRecordExists(ctx context.Context, guildID snowflake.ID, messageID snowflake.ID, userID snowflake.ID, emojiID string, emojiName string) (bool, error) {
-	records, err := p.findReactionRecords(ctx, guildID, messageID, userID, emojiID, emojiName)
-	if err != nil {
-		return false, err
-	}
-	return len(records) > 0, nil
-}
-
-func (p *ReactionProcessor) findReactionRecords(_ context.Context, guildID snowflake.ID, messageID snowflake.ID, userID snowflake.ID, emojiID string, emojiName string) ([]*core.Record, error) {
+func (p *ReactionProcessor) findReactionRecords(_ context.Context, guildID snowflake.ID, messageID snowflake.ID, emojiID string, emojiName string) ([]*core.Record, error) {
 	if p == nil || p.app == nil {
 		return nil, nil
 	}
@@ -187,9 +227,6 @@ func (p *ReactionProcessor) findReactionRecords(_ context.Context, guildID snowf
 	filter := dbx.HashExp{
 		"guild_id":   guildID.String(),
 		"message_id": messageID.String(),
-	}
-	if userID != 0 {
-		filter["user_id"] = userID.String()
 	}
 	if emojiID != "" {
 		filter["emoji_id"] = emojiID

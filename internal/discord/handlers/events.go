@@ -28,11 +28,14 @@ func (h *Handler) OnGuildMessageReactionAdd(event *events.GuildMessageReactionAd
 		emojiName = *event.Emoji.Name
 	}
 
+	authorID := h.resolveMessageAuthorID(event.ChannelID, event.MessageID)
+
 	h.bus.DiscordEvents <- bus.ReactionAdded{
 		GuildID:   event.GuildID,
 		ChannelID: event.ChannelID,
 		MessageID: event.MessageID,
 		UserID:    event.UserID,
+		AuthorID:  authorID,
 		EmojiName: emojiName,
 		EmojiID:   event.Emoji.ID,
 	}
