@@ -3,6 +3,9 @@ discord:
   secret: "YOUR_CLIENT_SECRET"
   token: "YOUR_BOT_TOKEN"
 
+pocketbase:
+  port: 8090
+
 dev:
   enabled: false
   # This will register all slash commands with the guild for instant updates.

@@ -8,8 +8,9 @@ import (
 )
 
 type Config struct {
-	Discord DiscordConfig `yaml:"discord"`
-	Dev     DevConfig     `yaml:"dev"`
+	Discord    DiscordConfig    `yaml:"discord"`
+	PocketBase PocketBaseConfig `yaml:"pocketbase"`
+	Dev        DevConfig        `yaml:"dev"`
 }
 
 type DiscordConfig struct {
@@ -21,6 +22,10 @@ type DiscordConfig struct {
 type DevConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	GuildID string `yaml:"guild_id"`
+}
+
+type PocketBaseConfig struct {
+	Port int `yaml:"port"`
 }
 
 func Load(path string) (Config, error) {
