@@ -1,0 +1,9 @@
+discord:
+  client_id: "YOUR_CLIENT_ID"
+  secret: "YOUR_CLIENT_SECRET"
+  token: "YOUR_BOT_TOKEN"
+
+dev:
+  enabled: false
+  # This will register all slash commands with the guild for instant updates.
+  guild_id: "YOUR_DEV_GUILD_ID"
