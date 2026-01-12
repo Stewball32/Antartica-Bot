@@ -77,9 +77,24 @@ func RegisterHooks(app *pocketbase.PocketBase, eventBus *bus.Bus, logger *slog.L
 		return e.Next()
 	})
 
+	app.OnRecordAfterUpdateSuccess("reaction_records").BindFunc(func(e *core.RecordEvent) error {
+		before := e.Record.Original().GetInt("reactions")
+		after := e.Record.GetInt("reactions")
+		delta := after - before
+		if delta != 0 {
+			if err := messages.UpdateReactionLeaderboard(context.Background(), e.App, eventBus, logger, e.Record, delta); err != nil {
+				logger.Warn("reaction leaderboard update failed", slog.Any("err", err))
+			}
+		}
+		return e.Next()
+	})
+
 	app.OnRecordAfterDeleteSuccess("reaction_records").BindFunc(func(e *core.RecordEvent) error {
-		if err := messages.UpdateReactionLeaderboard(context.Background(), e.App, eventBus, logger, e.Record, -1); err != nil {
-			logger.Warn("reaction leaderboard update failed", slog.Any("err", err))
+		delta := -e.Record.GetInt("reactions")
+		if delta != 0 {
+			if err := messages.UpdateReactionLeaderboard(context.Background(), e.App, eventBus, logger, e.Record, delta); err != nil {
+				logger.Warn("reaction leaderboard update failed", slog.Any("err", err))
+			}
 		}
 		return e.Next()
 	})

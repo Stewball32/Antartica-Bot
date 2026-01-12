@@ -39,6 +39,7 @@ type ReactionAdded struct {
 	ChannelID snowflake.ID
 	MessageID snowflake.ID
 	UserID    snowflake.ID
+	AuthorID  snowflake.ID
 	EmojiName string
 	EmojiID   *snowflake.ID
 }
@@ -50,6 +51,7 @@ type ReactionRemoved struct {
 	ChannelID snowflake.ID
 	MessageID snowflake.ID
 	UserID    snowflake.ID
+	AuthorID  snowflake.ID
 	EmojiName string
 	EmojiID   *snowflake.ID
 }
